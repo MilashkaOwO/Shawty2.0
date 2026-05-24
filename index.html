@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Шаути-Аналитик v27 (Hugging Face + Python)</title>
+    <script src="https://telegram.org/js/telegram-web-app.js?56"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --bg: #0a0f1c;
+            --card-bg: rgba(12, 18, 32, 0.9);
+            --card-border: rgba(90, 120, 240, 0.35);
+            --text: #eef3ff;
+            --text-dim: #9aabdf;
+            --accent: #5f7aff;
+            --accent2: #7b8fff;
+            --param-bg: #050b17;
+            --input-bg: rgba(10, 20, 40, 0.8);
+            --input-border: #2f3b68;
+            --rater-bg: rgba(26, 31, 58, 0.4);
+            --btn-bg: #1a1f3a;
+            --modal-bg: rgba(0,0,0,0.9);
+            --footer: #5b6b9b;
+            --transition: 0.3s ease;
+        }
+        .theme-oled {
+            --bg: #000;
+            --card-bg: rgba(10, 10, 10, 0.95);
+            --card-border: rgba(90, 120, 240, 0.5);
+            --text: #fff;
+            --text-dim: #aaaacc;
+            --param-bg: #0a0a0a;
+            --input-bg: rgba(20, 20, 30, 0.9);
+            --input-border: #444466;
+            --rater-bg: rgba(20, 20, 30, 0.6);
+            --btn-bg: #1a1a2a;
+            --modal-bg: rgba(0,0,0,0.98);
+            --footer: #666688;
+        }
+        .theme-light {
+            --bg: #f0f2f8;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --card-border: rgba(90, 120, 240, 0.4);
+            --text: #1a1f3a;
+            --text-dim: #555577;
+            --param-bg: #f5f6fa;
+            --input-bg: #fff;
+            --input-border: #ccd0dd;
+            --rater-bg: rgba(240, 242, 250, 0.8);
+            --btn-bg: #e8eaf0;
+            --modal-bg: rgba(0,0,0,0.7);
+            --footer: #777799;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 16px 12px 40px;
+            color: var(--text);
+            min-height: 100vh;
+            transition: background var(--transition), color var(--transition);
+        }
+        .container { max-width: 500px; margin: 0 auto; }
+
+        .tabs {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 12px;
+            background: var(--card-bg);
+            padding: 4px;
+            border-radius: 50px;
+            border: 1px solid var(--card-border);
+            flex-wrap: wrap;
+        }
+        .tab {
+            flex: 1;
+            min-width: 50px;
+            padding: 10px 4px;
+            text-align: center;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 0.6rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 40px;
+            transition: all var(--transition);
+            white-space: nowrap;
+        }
+        .tab.active {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: white;
+        }
+        .tab:active { transform: scale(0.96); }
+
+        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+        @keyframes countIn { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 1.5rem;
+            border: 1px solid var(--card-border);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 0.8rem;
+        }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff, #b7c4ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.8rem; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; margin-bottom: 0.8rem; }
+        .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.3rem; margin-bottom: 0.8rem; }
+        .param-card {
+            background: var(--param-bg);
+            border-radius: 0.8rem;
+            padding: 0.6rem;
+            border-left: 3px solid var(--accent);
+        }
+        .param-label {
+            font-size: 0.55rem;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 3px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            background: linear-gradient(90deg, var(--accent), #a88bff);
+            height: 4px;
+            border-radius: 10px;
+            -webkit-appearance: none;
+            margin: 6px 0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px; height: 18px;
+            background: #8c9eff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .param-input {
+            background: var(--input-bg);
+            border: 2px solid var(--input-border);
+            border-radius: 10px;
+            padding: 6px 8px;
+            color: var(--text);
+            font-size: 0.9rem;
+            font-weight: 700;
+            width: 100%;
+            text-align: center;
+            -moz-appearance: textfield;
+        }
+        .param-input:focus { outline: none; border-color: var(--accent); }
+        .param-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+        .value-large { font-size: 1rem; font-weight: 800; margin-top: 3px; }
+
+        .quick-buttons { display: flex; gap: 2px; margin-top: 3px; }
+        .quick-btn {
+            background: var(--btn-bg);
+            border: 1px solid var(--input-border);
+            color: var(--text-dim);
+            padding: 2px 0;
+            font-size: 0.6rem;
+            border-radius: 6px;
+            cursor: pointer;
+            flex: 1;
+        }
+        .quick-btn:active { background: var(--accent); color: white; }
+
+        select {
+            background: var(--param-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 2rem;
+            padding: 6px;
+            color: var(--text);
+            width: 100%;
+            font-size: 0.65rem;
+        }
+
+        .result-block {
+            background: linear-gradient(135deg, #01040e, #0a1230);
+            border-radius: 1.5rem;
+            padding: 1rem;
+            text-align: center;
+            margin-top: 0.6rem;
+        }
+        .result-block.premium { animation: pulse 1.5s ease-in-out infinite; }
+        .ksh-number { font-size: 2.8rem; font-weight: 800; }
+        .ksh-number.animate { animation: countIn 0.5s ease; }
+
+        button {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border: none;
+            padding: 8px 14px;
+            border-radius: 2rem;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s ease;
+        }
+        button:active { transform: scale(0.95); opacity: 0.9; }
+        button.danger { background: linear-gradient(135deg, #ff5f5f, #ff7b7b); }
+        button.success { background: linear-gradient(135deg, #4caf84, #5fcf9f); }
+        button.small { padding: 4px 10px; font-size: 0.65rem; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .flex-buttons { display: flex; gap: 6px; margin-top: 0.6rem; flex-wrap: wrap; }
+
+        .cluster-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-top: 6px;
+            background: var(--btn-bg);
+        }
+
+        footer { text-align: center; font-size: 0.55rem; margin-top: 1rem; color: var(--footer); }
+
+        .rater-row {
+            background: var(--rater-bg);
+            border-radius: 12px;
+            padding: 8px;
+            margin-bottom: 6px;
+        }
+        .rater-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            gap: 4px;
+        }
+        .rater-ksh { font-weight: 700; font-size: 0.9rem; }
+
+        .compat-score { font-size: 3rem; font-weight: 800; text-align: center; }
+
+        input[type="text"] {
+            background: var(--param-bg);
+            border: 2px solid var(--input-border);
+            border-radius: 12px;
+            padding: 8px;
+            color: var(--text);
+            width: 100%;
+            font-size: 0.9rem;
+        }
+        input[type="text"]:focus { outline: none; border-color: var(--accent); }
+
+        .settings-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--rater-bg);
+            border-radius: 12px;
+            margin-bottom: 10px;
+        }
+        .settings-option label { font-size: 0.8rem; color: var(--text-dim); }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--modal-bg);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-box {
+            background: var(--bg);
+            border: 1px solid var(--card-border);
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            max-width: 380px;
+            width: 100%;
+            text-align: center;
+        }
+        .modal-box h3 { margin-bottom: 12px; color: var(--text-dim); }
+        .qr-container {
+            display: flex;
+            justify-content: center;
+            margin: 12px 0;
+            background: white;
+            padding: 12px;
+            border-radius: 12px;
+            min-height: 200px;
+            align-items: center;
+        }
+        .qr-container canvas, .qr-container img { max-width: 200px; max-height: 200px; }
+        .close-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--input-border);
+            color: var(--text-dim);
+            padding: 8px 20px;
+            border-radius: 2rem;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 0.8rem;
+        }
+
+        .import-section { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+        .import-section input { flex: 1; min-width: 150px; font-size: 0.7rem; }
+
+        .scanner-container {
+            position: relative;
+            width: 100%;
+            max-width: 300px;
+            margin: 12px auto;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+        }
+        .scanner-container video { width: 100%; display: block; }
+        .scanner-container canvas { display: none; }
+        .scanner-status { font-size: 0.7rem; color: #ffaa66; margin-top: 6px; }
+
+        .photo-upload-area {
+            border: 2px dashed var(--card-border);
+            border-radius: 1rem;
+            padding: 2rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+            background: var(--param-bg);
+        }
+        .photo-upload-area input[type="file"] { display: none; }
+        .photo-preview {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: 1rem;
+            margin-bottom: 1rem;
+            background: #000;
+        }
+        .analysis-result {
+            padding: 0.8rem;
+            background: var(--rater-bg);
+            border-radius: 1rem;
+            margin-top: 0.5rem;
+        }
+        .analysis-bar {
+            height: 8px;
+            border-radius: 4px;
+            background: var(--input-border);
+            margin: 4px 0 8px;
+            overflow: hidden;
+        }
+        .analysis-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.8s ease;
+        }
+        .analysis-label { display: flex; justify-content: space-between; font-size: 0.7rem; }
+        .spinner {
+            display: inline-block;
+            width: 30px; height: 30px;
+            border: 3px solid var(--input-border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .export-preview {
+            background: #0a0f1c;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+            color: white;
+            position: absolute;
+            left: -9999px;
+            width: 350px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="tabs">
+        <button class="tab active" data-tab="solo">📊 Соло</button>
+        <button class="tab" data-tab="group">👥 Группа</button>
+        <button class="tab" data-tab="pair">💑 Пара</button>
+        <button class="tab" data-tab="photo">📷 Фото</button>
+        <button class="tab" data-tab="settings">⚙️</button>
+    </div>
+
+    <!-- СОЛО -->
+    <div class="tab-content active" id="solo-tab">
+        <div class="card">
+            <div class="card-header"><div class="card-title">✨ Шаути-Аналитик</div><span style="font-size:0.6rem;color:var(--text-dim);">v27.0 (Hugging Face)</span></div>
+            <div id="solo-sliders">
+                <div class="grid-3">
+                    <div class="param-card"><div class="param-label">💫 Внешность</div><input type="range" id="solo-vn" min="0" max="10" step="0.1" value="7.0"><div class="value-large"><span id="solo-vn-val">7.0</span>/10</div></div>
+                    <div class="param-card"><div class="param-label">🌿 Характер</div><input type="range" id="solo-x" min="-10" max="10" step="0.1" value="6.5"><div class="value-large"><span id="solo-x-val">6.5</span>/±10</div></div>
+                    <div class="param-card"><div class="param-label">🔥 Драма</div><input type="range" id="solo-d" min="0" max="10" step="0.1" value="4.5"><div class="value-large"><span id="solo-d-val">4.5</span>/10</div></div>
+                </div>
+            </div>
+            <div id="solo-numbers" style="display:none;">
+                <div class="grid-3">
+                    <div class="param-card"><div class="param-label">💫 Внешность</div><input type="number" id="solo-vn-num" class="param-input" min="0" max="10" step="0.1" value="7.0"><div class="quick-buttons"><button class="quick-btn" data-target="solo-vn" data-value="5">5</button><button class="quick-btn" data-target="solo-vn" data-value="7">7</button><button class="quick-btn" data-target="solo-vn" data-value="9">9</button><button class="quick-btn" data-target="solo-vn" data-value="10">10</button></div></div>
+                    <div class="param-card"><div class="param-label">🌿 Характер</div><input type="number" id="solo-x-num" class="param-input" min="-10" max="10" step="0.1" value="6.5"><div class="quick-buttons"><button class="quick-btn" data-target="solo-x" data-value="-5">-5</button><button class="quick-btn" data-target="solo-x" data-value="0">0</button><button class="quick-btn" data-target="solo-x" data-value="5">5</button><button class="quick-btn" data-target="solo-x" data-value="10">10</button></div></div>
+                    <div class="param-card"><div class="param-label">🔥 Драма</div><input type="number" id="solo-d-num" class="param-input" min="0" max="10" step="0.1" value="4.5"><div class="quick-buttons"><button class="quick-btn" data-target="solo-d" data-value="2">2</button><button class="quick-btn" data-target="solo-d" data-value="4">4</button><button class="quick-btn" data-target="solo-d" data-value="7">7</button><button class="quick-btn" data-target="solo-d" data-value="9">9</button></div></div>
+                </div>
+            </div>
+            <div class="grid-3" style="grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                <div><div class="param-label" style="font-size:0.5rem;">Уник (U)</div><select id="solo-U"><option value="0.5">0.5</option><option value="1.0">1.0</option><option value="1.5" selected>1.5</option><option value="2.0">2.0</option></select></div>
+                <div><div class="param-label" style="font-size:0.5rem;">Хар (H)</div><select id="solo-H"><option value="0.5">0.5</option><option value="1.0" selected>1.0</option><option value="1.5">1.5</option><option value="2.0">2.0</option></select></div>
+                <div><div class="param-label" style="font-size:0.5rem;">Драм (Δ)</div><select id="solo-DD"><option value="0.5">0.5</option><option value="1.0" selected>1.0</option><option value="1.5">1.5</option><option value="2.0">2.0</option></select></div>
+            </div>
+            <div class="result-block" id="solo-result-block"><div>🧬 Индекс Шаути</div><div class="ksh-number" id="solo-ksh">65.0</div><div id="solo-cluster" class="cluster-badge">🌟 Высокий</div></div>
+            <div class="flex-buttons"><button id="solo-export-btn" class="success">📤 QR</button><button id="solo-copy-btn">📋 Копировать</button><button id="solo-card-btn">📸 Карточка</button></div>
+        </div>
+    </div>
+
+    <!-- ГРУППА -->
+    <div class="tab-content" id="group-tab">
+        <div class="card">
+            <div class="card-header"><div class="card-title">👥 Групповая оценка</div><span style="font-size:0.6rem;color:var(--text-dim);">v27.0</span></div>
+            <div style="margin-bottom:10px;"><label style="font-size:0.7rem;color:var(--text-dim);">Имя оцениваемого:</label><input type="text" id="group-name" value="Алиса"></div>
+            <div id="group-raters"></div>
+            <div class="flex-buttons" style="margin-top:8px;"><button id="add-rater-btn">+ Добавить</button><button id="group-import-btn" class="success">📥 Импорт QR</button></div>
+            <div class="result-block" style="margin-top:12px;" id="group-result-block"><div>📊 Средний Индекс Шаути</div><div class="ksh-number" id="group-avg-ksh">—</div><div id="group-cluster" class="cluster-badge">—</div><div style="font-size:0.65rem;color:var(--text-dim);margin-top:4px;">Разброс: <span id="group-spread">—</span></div></div>
+            <div class="flex-buttons"><button id="group-save-btn">💾 Сохранить сессию</button><button id="group-load-btn">📂 Загрузить</button><button id="group-clear-btn" class="danger">🗑️ Очистить</button></div>
+        </div>
+    </div>
+
+    <!-- ПАРА -->
+    <div class="tab-content" id="pair-tab">
+        <div class="card">
+            <div class="card-header"><div class="card-title">💑 Совместимость</div><span style="font-size:0.6rem;color:var(--text-dim);">v27.0</span></div>
+            <div class="grid-2">
+                <div>
+                    <div style="text-align:center;font-weight:700;color:#b7c4ff;margin-bottom:6px;">Партнёр 1</div>
+                    <div class="param-card" style="margin-bottom:4px;"><div class="param-label">💫 Внешность</div><input type="range" id="p1-vn" min="0" max="10" step="0.1" value="7.0"><div class="value-large"><span id="p1-vn-val">7.0</span></div></div>
+                    <div class="param-card" style="margin-bottom:4px;"><div class="param-label">🌿 Характер</div><input type="range" id="p1-x" min="-10" max="10" step="0.1" value="6.0"><div class="value-large"><span id="p1-x-val">6.0</span></div></div>
+                    <div class="param-card"><div class="param-label">🔥 Драма</div><input type="range" id="p1-d" min="0" max="10" step="0.1" value="3.0"><div class="value-large"><span id="p1-d-val">3.0</span></div></div>
+                </div>
+                <div>
+                    <div style="text-align:center;font-weight:700;color:#ffb7c5;margin-bottom:6px;">Партнёр 2</div>
+                    <div class="param-card" style="margin-bottom:4px;"><div class="param-label">💫 Внешность</div><input type="range" id="p2-vn" min="0" max="10" step="0.1" value="8.0"><div class="value-large"><span id="p2-vn-val">8.0</span></div></div>
+                    <div class="param-card" style="margin-bottom:4px;"><div class="param-label">🌿 Характер</div><input type="range" id="p2-x" min="-10" max="10" step="0.1" value="7.0"><div class="value-large"><span id="p2-x-val">7.0</span></div></div>
+                    <div class="param-card"><div class="param-label">🔥 Драма</div><input type="range" id="p2-d" min="0" max="10" step="0.1" value="2.0"><div class="value-large"><span id="p2-d-val">2.0</span></div></div>
+                </div>
+            </div>
+            <div style="margin-top:10px;font-size:0.65rem;color:var(--text-dim);text-align:center;">Веса</div>
+            <div class="grid-3" style="gap:6px;"><select id="pair-alpha"><option value="0.1">α=0.1</option><option value="0.2" selected>α=0.2</option><option value="0.3">α=0.3</option></select><select id="pair-beta"><option value="0.4">β=0.4</option><option value="0.5" selected>β=0.5</option><option value="0.6">β=0.6</option></select><select id="pair-gamma"><option value="0.2">γ=0.2</option><option value="0.3" selected>γ=0.3</option><option value="0.4">γ=0.4</option></select></div>
+            <div class="result-block" style="margin-top:10px;" id="pair-result-block"><div>💞 Совместимость</div><div class="compat-score" id="pair-sci">—</div><div id="pair-verdict" class="cluster-badge">—</div></div>
+            <div class="graph-container" style="background:var(--param-bg);border-radius:1rem;padding:0.5rem;margin-top:0.5rem;"><canvas id="radarChart" height="200"></canvas></div>
+            <button id="pair-card-btn" style="width:100%;margin-top:8px;">📸 Карточка</button>
+        </div>
+    </div>
+
+    <!-- ФОТО-АНАЛИЗ (Hugging Face + Python) -->
+    <div class="tab-content" id="photo-tab">
+        <div class="card">
+            <div class="card-header"><div class="card-title">📷 Фото-анализ</div><span style="font-size:0.6rem;color:var(--text-dim);">Hugging Face + Python</span></div>
+            <p style="font-size:0.65rem;color:var(--text-dim);margin-bottom:10px;">Загрузи фото — Hugging Face оценит Hunter eyes, Prey eyes, Rizz, Aura, Mogg</p>
+            <p style="font-size:0.55rem;color:#88ffaa;margin-bottom:10px;">✅ Бесплатно (Hugging Face Inference API через Python)</p>
+            <div class="photo-upload-area" id="photo-upload-area">
+                <div>📷 Нажмите для выбора фото</div>
+                <div style="font-size:0.6rem;color:var(--text-dim);">JPG, PNG до 10MB</div>
+                <input type="file" id="photo-input" accept="image/*" capture="environment">
+            </div>
+            <button id="photo-camera-btn" class="success" style="width:100%;margin-bottom:1rem;">📸 Сделать фото</button>
+            <img id="photo-preview" class="photo-preview" style="display:none;">
+            <div id="photo-loading" style="display:none;text-align:center;padding:1rem;"><div class="spinner"></div><p style="font-size:0.7rem;color:var(--text-dim);margin-top:8px;">Hugging Face анализирует...</p></div>
+            <div id="photo-results" style="display:none;">
+                <div class="grid-5">
+                    <div class="param-card" style="border-left-color:#ff6b6b;"><div class="param-label">👁️ Hunter</div><div class="value-large" id="hunter-val">—</div></div>
+                    <div class="param-card" style="border-left-color:#6bc5ff;"><div class="param-label">🦌 Prey</div><div class="value-large" id="prey-val">—</div></div>
+                    <div class="param-card" style="border-left-color:#ffb347;"><div class="param-label">😏 Rizz</div><div class="value-large" id="rizz-val">—</div></div>
+                    <div class="param-card" style="border-left-color:#c084fc;"><div class="param-label">🌟 Aura</div><div class="value-large" id="aura-val">—</div></div>
+                    <div class="param-card" style="border-left-color:#ff7b9f;"><div class="param-label">🗿 Mogg</div><div class="value-large" id="mogg-val">—</div></div>
+                </div>
+                <div class="analysis-result">
+                    <div class="analysis-label"><span>👁️ Hunter eyes</span><span id="hunter-bar-val">0</span></div><div class="analysis-bar"><div class="analysis-bar-fill" id="hunter-bar" style="width:0%;background:#ff6b6b;"></div></div>
+                    <div class="analysis-label"><span>🦌 Prey eyes</span><span id="prey-bar-val">0</span></div><div class="analysis-bar"><div class="analysis-bar-fill" id="prey-bar" style="width:0%;background:#6bc5ff;"></div></div>
+                    <div class="analysis-label"><span>😏 Rizz (charm)</span><span id="rizz-bar-val">0</span></div><div class="analysis-bar"><div class="analysis-bar-fill" id="rizz-bar" style="width:0%;background:#ffb347;"></div></div>
+                    <div class="analysis-label"><span>🌟 Aura</span><span id="aura-bar-val">0</span></div><div class="analysis-bar"><div class="analysis-bar-fill" id="aura-bar" style="width:0%;background:#c084fc;"></div></div>
+                    <div class="analysis-label"><span>🗿 Mogg (крутость)</span><span id="mogg-bar-val">0</span></div><div class="analysis-bar"><div class="analysis-bar-fill" id="mogg-bar" style="width:0%;background:#ff7b9f;"></div></div>
+                </div>
+            </div>
+            <div id="photo-error" style="display:none;text-align:center;color:#ff6b6b;font-size:0.7rem;margin-top:8px;"></div>
+            <button id="photo-retry-btn" style="display:none;width:100%;margin-top:8px;">🔄 Попробовать снова</button>
+        </div>
+    </div>
+
+    <!-- НАСТРОЙКИ -->
+    <div class="tab-content" id="settings-tab">
+        <div class="card">
+            <div class="card-title" style="font-size:1.1rem;margin-bottom:15px;">⚙️ Настройки ввода</div>
+            <div class="settings-option"><label>🎛️ Способ ввода:</label><select id="input-mode-select"><option value="slider" selected>Ползунки</option><option value="keyboard">Клавиатура</option></select></div>
+            <div class="settings-option"><label>📊 Шаг изменения:</label><select id="step-select"><option value="0.1" selected>0.1</option><option value="0.5">0.5</option><option value="1.0">1.0</option></select></div>
+        </div>
+        <div class="card">
+            <div class="card-title" style="font-size:1.1rem;margin-bottom:15px;">🎨 Оформление</div>
+            <div class="settings-option"><label>🌓 Тема:</label><select id="theme-select"><option value="dark" selected>Тёмная</option><option value="oled">OLED</option><option value="light">Светлая</option></select></div>
+        </div>
+        <div class="card">
+            <div class="card-title" style="font-size:1.1rem;margin-bottom:15px;">🤖 Hugging Face API</div>
+            <div class="settings-option"><label>🔑 Hugging Face токен:</label></div>
+            <input type="text" id="hf-token" placeholder="hf_... (ваш Hugging Face токен)" style="margin-bottom:8px;font-size:0.7rem;">
+            <p style="font-size:0.5rem;color:var(--text-dim);">Бесплатно: <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent);">huggingface.co/settings/tokens</a></p>
+            <div style="margin-top:8px;font-size:0.6rem;color:#88ffaa;">⚠️ Сервер должен быть запущен на <b>http://localhost:5000</b></div>
+        </div>
+        <div class="card">
+            <div class="card-title" style="font-size:1.1rem;margin-bottom:15px;">📥 Импорт / Экспорт</div>
+            <div class="import-section" style="margin-bottom:12px;"><input type="text" id="import-link-input" placeholder="SHAUTHI://..."><button id="import-link-btn" class="success">📥 Импорт</button></div>
+            <div class="import-section" style="margin-bottom:12px;"><button id="paste-clipboard-btn">📋 Вставить из буфера</button></div>
+            <button id="scan-qr-btn" class="success" style="width:100%;">📷 Сканировать QR</button>
+            <div id="import-status" style="font-size:0.7rem;color:#88ffaa;margin-top:8px;"></div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНЫЕ ОКНА -->
+    <div class="modal-overlay" id="qr-modal"><div class="modal-box"><h3>📤 Поделиться оценкой</h3><div class="qr-container" id="qr-container"></div><p style="font-size:0.65rem;color:var(--text-dim);word-break:break-all;" id="qr-link-text"></p><button class="close-btn" id="qr-close-btn">Закрыть</button></div></div>
+    <div class="modal-overlay" id="scanner-modal"><div class="modal-box"><h3>📷 Сканирование QR</h3><div class="scanner-container"><video id="scanner-video" autoplay playsinline></video><canvas id="scanner-canvas"></canvas></div><p class="scanner-status" id="scanner-status">Наведите камеру на QR-код</p><button class="close-btn" id="scanner-close-btn">Закрыть</button></div></div>
+    <div class="modal-overlay" id="card-modal"><div class="modal-box" id="card-modal-content"></div></div>
+
+    <footer>Шаути-Аналитик v27.0 (Hugging Face + Python)</footer>
+</div>
+
+<script>
+(function() {
+    // ==================== ГЛОБАЛЬНЫЕ НАСТРОЙКИ ====================
+    let currentMode = 'slider', currentStep = 0.1, currentTheme = 'dark';
+    let photoFile = null;
+
+    // ==================== ОБЩИЕ ФУНКЦИИ ====================
+    function kshFormula(vn, x, d, U, H, Δ) {
+        return Math.max(0, 50 + (vn - 5) * U * 5 + x * H * 2.5 - d * Δ * 1.5);
+    }
+    function getCluster(vn, x, d, ksh) {
+        if (ksh > 100) return { name: '🔄 Пересчитай', color: '#ffffff' };
+        if (ksh >= 90) return { name: '🌙 Сон', color: '#c084fc' };
+        if (ksh >= 80) return { name: '💎 Экстра класс', color: '#ffd700' };
+        if (ksh >= 70) return { name: '👑 Элит', color: '#ff69b4' };
+        if (ksh >= 50) return { name: '🌟 Высокий', color: '#c0c0c0' };
+        if (ksh >= 40) return { name: '📊 Мид', color: '#88aaff' };
+        if (ksh >= 30) return { name: '🌸 Цветочки', color: '#ffaa88' };
+        if (ksh >= 15) return { name: '😶 Ангамбл', color: '#ffaa66' };
+        if (vn >= 8.5 && x >= 7 && d <= 2.5) return { name: '👼 Ангел', color: '#88aaff' };
+        if (vn >= 8 && d >= 7) return { name: '☣️ На любителя', color: '#ff6666' };
+        if (x >= 7.5 && d <= 3.5) return { name: '💛 Комфорт', color: '#88ffaa' };
+        if (x <= -7) return { name: '😈 Погодность', color: '#ff4444' };
+        if (d >= 7) return { name: '⚠️ Драмаквин', color: '#ff4444' };
+        return { name: '💀 Анрэпэбл', color: '#ff4444' };
+    }
+    function kshColor(ksh) {
+        if (ksh > 100) return '#ffffff';
+        if (ksh >= 90) return '#c084fc';
+        if (ksh >= 80) return '#ffd700';
+        if (ksh >= 70) return '#ff69b4';
+        if (ksh >= 50) return '#c0c0c0';
+        if (ksh >= 40) return '#88aaff';
+        if (ksh >= 30) return '#ffaa88';
+        if (ksh >= 15) return '#ffaa66';
+        return '#ff4444';
+    }
+    function packRaterData(vn, x, d, U, H, Δ, name) {
+        return 'SHAUTHI://' + btoa(encodeURIComponent(JSON.stringify({ vn, x, d, U, H, Δ, name: name || 'Оценщик' })));
+    }
+    function unpackRaterData(str) {
+        try { return JSON.parse(decodeURIComponent(atob(str.replace('SHAUTHI://', '').trim()))); }
+        catch(e) { return null; }
+    }
+    function generateQRCode(containerId, dataString) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        try {
+            new QRCode(container, {
+                text: dataString,
+                width: 180,
+                height: 180,
+                colorDark: '#0a0f1c',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        } catch(e) {
+            container.innerHTML = '<p style="color:#ff6b6b;">Ошибка QR</p>';
+        }
+    }
+
+    // ==================== ТЕМЫ ====================
+    function setTheme(theme) {
+        currentTheme = theme;
+        document.body.className = theme === 'oled' ? 'theme-oled' : theme === 'light' ? 'theme-light' : '';
+        localStorage.setItem('shauthi_theme', theme);
+    }
+
+    // ==================== ВКЛАДКИ ====================
+    function switchTab(name) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        const tab = document.querySelector(`[data-tab="${name}"]`);
+        if (tab) tab.classList.add('active');
+        const content = document.getElementById(name + '-tab');
+        if (content) content.classList.add('active');
+        if (name === 'pair') setTimeout(updateRadar, 200);
+    }
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+
+    // ==================== МОДАЛЬНЫЕ ОКНА ====================
+    function showModal(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('show');
+    }
+    function hideModal(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('show');
+    }
+    document.querySelectorAll('.modal-overlay').forEach(m => {
+        m.addEventListener('click', (e) => { if (e.target === m) hideModal(m.id); });
+    });
+
+    const qrCloseBtn = document.getElementById('qr-close-btn');
+    if (qrCloseBtn) qrCloseBtn.addEventListener('click', () => hideModal('qr-modal'));
+
+    const scannerCloseBtn = document.getElementById('scanner-close-btn');
+    if (scannerCloseBtn) scannerCloseBtn.addEventListener('click', stopScanner);
+
+    // ==================== QR МОДАЛ ====================
+    function showQRModal(title, dataString) {
+        const titleEl = document.getElementById('qr-modal-title');
+        const linkEl = document.getElementById('qr-link-text');
+        if (titleEl) titleEl.textContent = title;
+        if (linkEl) linkEl.textContent = dataString;
+        showModal('qr-modal');
+        setTimeout(() => {
+            generateQRCode('qr-container', dataString);
+        }, 200);
+    }
+
+    // ==================== СКАНЕР ====================
+    let scannerStream = null, scanInterval = null;
+    async function startScanner() {
+        try {
+            scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            const video = document.getElementById('scanner-video');
+            if (video) {
+                video.srcObject = scannerStream;
+                video.play();
+            }
+            const status = document.getElementById('scanner-status');
+            if (status) status.textContent = 'Наведите камеру на QR-код';
+            showModal('scanner-modal');
+            startScanLoop();
+        } catch(e) { alert('Нет доступа к камере.'); }
+    }
+    function stopScanner() {
+        if (scanInterval) clearInterval(scanInterval);
+        if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
+        const video = document.getElementById('scanner-video');
+        if (video) video.srcObject = null;
+        hideModal('scanner-modal');
+    }
+    function startScanLoop() {
+        const video = document.getElementById('scanner-video');
+        const canvas = document.getElementById('scanner-canvas');
+        if (!video || !canvas) return;
+        const ctx = canvas.getContext('2d');
+        scanInterval = setInterval(() => {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                try {
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+                    if (code && code.data.startsWith('SHAUTHI://')) {
+                        stopScanner();
+                        if (importRaterToGroup(code.data)) {
+                            alert('QR распознан!');
+                            switchTab('group');
+                        }
+                    }
+                } catch(e) {}
+            }
+        }, 200);
+    }
+
+    // ==================== СОЛО ====================
+    const soloVn = document.getElementById('solo-vn'), soloX = document.getElementById('solo-x'), soloD = document.getElementById('solo-d');
+    const soloVnNum = document.getElementById('solo-vn-num'), soloXNum = document.getElementById('solo-x-num'), soloDNum = document.getElementById('solo-d-num');
+    const soloVnVal = document.getElementById('solo-vn-val'), soloXVal = document.getElementById('solo-x-val'), soloDVal = document.getElementById('solo-d-val');
+    const soloU = document.getElementById('solo-U'), soloH = document.getElementById('solo-H'), soloDD = document.getElementById('solo-DD');
+    const soloKsh = document.getElementById('solo-ksh'), soloCluster = document.getElementById('solo-cluster');
+    const soloSliders = document.getElementById('solo-sliders'), soloNumbers = document.getElementById('solo-numbers');
+
+    function syncSoloFromSliders() {
+        if (soloVnNum) soloVnNum.value = parseFloat(soloVn.value).toFixed(1);
+        if (soloXNum) soloXNum.value = parseFloat(soloX.value).toFixed(1);
+        if (soloDNum) soloDNum.value = parseFloat(soloD.value).toFixed(1);
+    }
+    function syncSoloFromNumbers() {
+        if (soloVn) soloVn.value = parseFloat(soloVnNum.value) || 0;
+        if (soloX) soloX.value = parseFloat(soloXNum.value) || 0;
+        if (soloD) soloD.value = parseFloat(soloDNum.value) || 0;
+    }
+    function getSoloData() {
+        if (currentMode === 'slider') {
+            return {
+                vn: parseFloat(soloVn.value) || 0,
+                x: parseFloat(soloX.value) || 0,
+                d: parseFloat(soloD.value) || 0,
+                U: parseFloat(soloU.value) || 1,
+                H: parseFloat(soloH.value) || 1,
+                Δ: parseFloat(soloDD.value) || 1
+            };
+        }
+        return {
+            vn: Math.min(10, Math.max(0, parseFloat(soloVnNum.value) || 0)),
+            x: Math.min(10, Math.max(-10, parseFloat(soloXNum.value) || 0)),
+            d: Math.min(10, Math.max(0, parseFloat(soloDNum.value) || 0)),
+            U: parseFloat(soloU.value) || 1,
+            H: parseFloat(soloH.value) || 1,
+            Δ: parseFloat(soloDD.value) || 1
+        };
+    }
+    function updateSolo() {
+        if (currentMode === 'slider') {
+            if (soloVnVal) soloVnVal.textContent = parseFloat(soloVn.value).toFixed(1);
+            if (soloXVal) soloXVal.textContent = parseFloat(soloX.value).toFixed(1);
+            if (soloDVal) soloDVal.textContent = parseFloat(soloD.value).toFixed(1);
+        } else {
+            if (soloVnVal) soloVnVal.textContent = parseFloat(soloVnNum.value).toFixed(1);
+            if (soloXVal) soloXVal.textContent = parseFloat(soloXNum.value).toFixed(1);
+            if (soloDVal) soloDVal.textContent = parseFloat(soloDNum.value).toFixed(1);
+        }
+        const v = getSoloData();
+        const ksh = kshFormula(v.vn, v.x, v.d, v.U, v.H, v.Δ);
+        if (soloKsh) {
+            soloKsh.textContent = ksh.toFixed(1);
+            soloKsh.style.color = kshColor(ksh);
+            soloKsh.classList.add('animate');
+            setTimeout(() => soloKsh.classList.remove('animate'), 500);
+        }
+        const cluster = getCluster(v.vn, v.x, v.d, ksh);
+        if (soloCluster) {
+            soloCluster.textContent = cluster.name;
+            soloCluster.style.border = `2px solid ${cluster.color}`;
+            soloCluster.style.color = cluster.color;
+        }
+    }
+
+    if (soloVn) soloVn.addEventListener('input', () => { syncSoloFromSliders(); updateSolo(); });
+    if (soloX) soloX.addEventListener('input', () => { syncSoloFromSliders(); updateSolo(); });
+    if (soloD) soloD.addEventListener('input', () => { syncSoloFromSliders(); updateSolo(); });
+    if (soloVnNum) soloVnNum.addEventListener('input', () => { syncSoloFromNumbers(); updateSolo(); });
+    if (soloXNum) soloXNum.addEventListener('input', () => { syncSoloFromNumbers(); updateSolo(); });
+    if (soloDNum) soloDNum.addEventListener('input', () => { syncSoloFromNumbers(); updateSolo(); });
+    if (soloU) soloU.addEventListener('change', updateSolo);
+    if (soloH) soloH.addEventListener('change', updateSolo);
+    if (soloDD) soloDD.addEventListener('change', updateSolo);
+
+    const soloExportBtn = document.getElementById('solo-export-btn');
+    if (soloExportBtn) soloExportBtn.addEventListener('click', () => {
+        const v = getSoloData();
+        showQRModal('Моя оценка', packRaterData(v.vn, v.x, v.d, v.U, v.H, v.Δ, 'Я'));
+    });
+
+    const soloCopyBtn = document.getElementById('solo-copy-btn');
+    if (soloCopyBtn) soloCopyBtn.addEventListener('click', () => {
+        const v = getSoloData();
+        const str = packRaterData(v.vn, v.x, v.d, v.U, v.H, v.Δ, 'Я');
+        navigator.clipboard.writeText(str).then(() => alert('Скопировано!')).catch(() => prompt('Скопируйте:', str));
+    });
+
+    const soloCardBtn = document.getElementById('solo-card-btn');
+    if (soloCardBtn) soloCardBtn.addEventListener('click', exportSoloCard);
+
+    document.querySelectorAll('.quick-btn[data-target="solo-vn"]').forEach(b => {
+        b.addEventListener('click', () => { if (soloVnNum) soloVnNum.value = b.dataset.value; syncSoloFromNumbers(); updateSolo(); });
+    });
+    document.querySelectorAll('.quick-btn[data-target="solo-x"]').forEach(b => {
+        b.addEventListener('click', () => { if (soloXNum) soloXNum.value = b.dataset.value; syncSoloFromNumbers(); updateSolo(); });
+    });
+    document.querySelectorAll('.quick-btn[data-target="solo-d"]').forEach(b => {
+        b.addEventListener('click', () => { if (soloDNum) soloDNum.value = b.dataset.value; syncSoloFromNumbers(); updateSolo(); });
+    });
+
+    function setSoloMode(mode) {
+        currentMode = mode;
+        if (soloSliders) soloSliders.style.display = mode === 'slider' ? 'block' : 'none';
+        if (soloNumbers) soloNumbers.style.display = mode === 'keyboard' ? 'block' : 'none';
+        if (mode === 'keyboard') syncSoloFromSliders(); else syncSoloFromNumbers();
+        updateSolo();
+    }
+    updateSolo();
+
+    // ==================== ГРУППА ====================
+    let groupRaters = [], raterCounter = 0;
+    const groupNameInput = document.getElementById('group-name');
+    const groupRatersDiv = document.getElementById('group-raters');
+    const groupAvgKsh = document.getElementById('group-avg-ksh');
+    const groupCluster = document.getElementById('group-cluster');
+    const groupSpread = document.getElementById('group-spread');
+
+    function createRater(id, data = null) {
+        if (data) return { id, name: data.name || 'Импорт', vn: data.vn, x: data.x, d: data.d, U: data.U, H: data.H, Δ: data.Δ };
+        return { id, name: 'Оценщик ' + (id + 1), vn: 7.0, x: 6.0, d: 3.0, U: 1.5, H: 1.0, Δ: 1.0 };
+    }
+    function renderGroupRaters() {
+        if (!groupRatersDiv) return;
+        let html = '';
+        groupRaters.forEach(r => {
+            const ksh = kshFormula(r.vn, r.x, r.d, r.U, r.H, r.Δ);
+            html += `<div class="rater-row">
+                <div class="rater-header">
+                    <input type="text" value="${r.name}" data-id="${r.id}" class="rater-name-input" style="width:100px;font-size:0.7rem;padding:4px 6px;">
+                    <span class="rater-ksh" style="color:${kshColor(ksh)}">KSh: ${ksh.toFixed(1)}</span>
+                    <button class="small danger" data-action="remove" data-id="${r.id}">✕</button>
+                </div>
+                <div class="grid-3" style="gap:3px;">
+                    <div><div class="param-label" style="font-size:0.45rem;">ВН</div><input type="range" min="0" max="10" step="0.1" value="${r.vn}" data-id="${r.id}" data-param="vn" class="rater-slider"><span style="font-size:0.55rem;">${r.vn.toFixed(1)}</span></div>
+                    <div><div class="param-label" style="font-size:0.45rem;">Х</div><input type="range" min="-10" max="10" step="0.1" value="${r.x}" data-id="${r.id}" data-param="x" class="rater-slider"><span style="font-size:0.55rem;">${r.x.toFixed(1)}</span></div>
+                    <div><div class="param-label" style="font-size:0.45rem;">Д</div><input type="range" min="0" max="10" step="0.1" value="${r.d}" data-id="${r.id}" data-param="d" class="rater-slider"><span style="font-size:0.55rem;">${r.d.toFixed(1)}</span></div>
+                </div>
+            </div>`;
+        });
+        groupRatersDiv.innerHTML = html || '<div style="text-align:center;color:var(--text-dim);padding:20px;">Нет оценщиков</div>';
+
+        groupRatersDiv.querySelectorAll('.rater-slider').forEach(s => {
+            s.addEventListener('input', () => {
+                const rater = groupRaters.find(r => r.id === parseInt(s.dataset.id));
+                if (rater) { rater[s.dataset.param] = parseFloat(s.value); updateGroupStats(); renderGroupRaters(); }
+            });
+        });
+        groupRatersDiv.querySelectorAll('.rater-name-input').forEach(i => {
+            i.addEventListener('input', () => {
+                const rater = groupRaters.find(r => r.id === parseInt(i.dataset.id));
+                if (rater) rater.name = i.value;
+            });
+        });
+        groupRatersDiv.querySelectorAll('[data-action="remove"]').forEach(b => {
+            b.addEventListener('click', () => {
+                groupRaters = groupRaters.filter(r => r.id !== parseInt(b.dataset.id));
+                updateGroupStats();
+                renderGroupRaters();
+            });
+        });
+        updateGroupStats();
+    }
+    function updateGroupStats() {
+        if (!groupRaters.length) {
+            if (groupAvgKsh) groupAvgKsh.textContent = '—';
+            if (groupCluster) groupCluster.textContent = '—';
+            if (groupSpread) groupSpread.textContent = '—';
+            return;
+        }
+        const avgVn = groupRaters.reduce((s,r) => s+r.vn,0)/groupRaters.length;
+        const avgX = groupRaters.reduce((s,r) => s+r.x,0)/groupRaters.length;
+        const avgD = groupRaters.reduce((s,r) => s+r.d,0)/groupRaters.length;
+        const avgU = groupRaters.reduce((s,r) => s+r.U,0)/groupRaters.length;
+        const avgH = groupRaters.reduce((s,r) => s+r.H,0)/groupRaters.length;
+        const avgDD = groupRaters.reduce((s,r) => s+r.Δ,0)/groupRaters.length;
+        const avgKsh = kshFormula(avgVn, avgX, avgD, avgU, avgH, avgDD);
+        if (groupAvgKsh) { groupAvgKsh.textContent = avgKsh.toFixed(1); groupAvgKsh.style.color = kshColor(avgKsh); }
+        const cluster = getCluster(avgVn, avgX, avgD, avgKsh);
+        if (groupCluster) {
+            groupCluster.textContent = cluster.name;
+            groupCluster.style.border = `2px solid ${cluster.color}`;
+            groupCluster.style.color = cluster.color;
+        }
+        const kshes = groupRaters.map(r => kshFormula(r.vn, r.x, r.d, r.U, r.H, r.Δ));
+        if (groupSpread) groupSpread.textContent = `±${((Math.max(...kshes)-Math.min(...kshes))/2).toFixed(1)}`;
+    }
+    function importRaterToGroup(dataStr) {
+        const data = unpackRaterData(dataStr);
+        if (!data || data.vn === undefined) { alert('Неверный формат'); return false; }
+        groupRaters.push(createRater(raterCounter++, data));
+        renderGroupRaters();
+        return true;
+    }
+
+    const addRaterBtn = document.getElementById('add-rater-btn');
+    if (addRaterBtn) addRaterBtn.addEventListener('click', () => { groupRaters.push(createRater(raterCounter++)); renderGroupRaters(); });
+
+    const groupImportBtn = document.getElementById('group-import-btn');
+    if (groupImportBtn) groupImportBtn.addEventListener('click', () => { const link = prompt('Вставьте ссылку SHAUTHI://...'); if (link) importRaterToGroup(link); });
+
+    const groupSaveBtn = document.getElementById('group-save-btn');
+    if (groupSaveBtn) groupSaveBtn.addEventListener('click', () => { localStorage.setItem('shauthi_group_session', JSON.stringify({ name: groupNameInput?.value || '', raters: groupRaters })); alert('Сессия сохранена!'); });
+
+    const groupLoadBtn = document.getElementById('group-load-btn');
+    if (groupLoadBtn) groupLoadBtn.addEventListener('click', () => {
+        const stored = localStorage.getItem('shauthi_group_session');
+        if (stored) {
+            const s = JSON.parse(stored);
+            if (groupNameInput) groupNameInput.value = s.name;
+            groupRaters = s.raters;
+            raterCounter = Math.max(...groupRaters.map(r=>r.id), -1) + 1;
+            renderGroupRaters();
+        } else alert('Нет сохранённой сессии');
+    });
+
+    const groupClearBtn = document.getElementById('group-clear-btn');
+    if (groupClearBtn) groupClearBtn.addEventListener('click', () => { if (confirm('Очистить?')) { groupRaters = []; raterCounter = 0; renderGroupRaters(); } });
+
+    groupRaters.push(createRater(raterCounter++));
+    groupRaters.push(createRater(raterCounter++));
+    renderGroupRaters();
+
+    // ==================== ПАРА ====================
+    const p1Vn=document.getElementById('p1-vn'),p1X=document.getElementById('p1-x'),p1D=document.getElementById('p1-d');
+    const p2Vn=document.getElementById('p2-vn'),p2X=document.getElementById('p2-x'),p2D=document.getElementById('p2-d');
+    const pairAlpha=document.getElementById('pair-alpha'),pairBeta=document.getElementById('pair-beta'),pairGamma=document.getElementById('pair-gamma');
+    const pairSci=document.getElementById('pair-sci'),pairVerdict=document.getElementById('pair-verdict');
+    let radarInstance = null;
+
+    function updatePair() {
+        if (document.getElementById('p1-vn-val')) document.getElementById('p1-vn-val').textContent = parseFloat(p1Vn?.value||0).toFixed(1);
+        if (document.getElementById('p1-x-val')) document.getElementById('p1-x-val').textContent = parseFloat(p1X?.value||0).toFixed(1);
+        if (document.getElementById('p1-d-val')) document.getElementById('p1-d-val').textContent = parseFloat(p1D?.value||0).toFixed(1);
+        if (document.getElementById('p2-vn-val')) document.getElementById('p2-vn-val').textContent = parseFloat(p2Vn?.value||0).toFixed(1);
+        if (document.getElementById('p2-x-val')) document.getElementById('p2-x-val').textContent = parseFloat(p2X?.value||0).toFixed(1);
+        if (document.getElementById('p2-d-val')) document.getElementById('p2-d-val').textContent = parseFloat(p2D?.value||0).toFixed(1);
+
+        const b1=parseFloat(p1Vn?.value||0),c1=parseFloat(p1X?.value||0),d1=parseFloat(p1D?.value||0);
+        const b2=parseFloat(p2Vn?.value||0),c2=parseFloat(p2X?.value||0),d2=parseFloat(p2D?.value||0);
+        const α=parseFloat(pairAlpha?.value||0.2),β=parseFloat(pairBeta?.value||0.5),γ=parseFloat(pairGamma?.value||0.3);
+        const sci=((α*(1-Math.abs(b1-b2)/10)+β*((Math.min(c1,c2)+10)/20)*(1-Math.abs(c1-c2)/20)+γ*(1-(d1*d2)/100)))*100;
+
+        if (pairSci) pairSci.textContent = sci.toFixed(1)+'%';
+
+        let verdict,color;
+        if (sci >= 85) { verdict = '💎 Экстра класс'; color = '#ffd700'; }
+        else if (sci >= 70) { verdict = '👑 Элит'; color = '#ff69b4'; }
+        else if (sci >= 50) { verdict = '🌟 Высокий'; color = '#c0c0c0'; }
+        else if (sci >= 40) { verdict = '📊 Мид'; color = '#88aaff'; }
+        else if (sci >= 30) { verdict = '🌸 Цветочки'; color = '#ffaa88'; }
+        else if (sci >= 15) { verdict = '😶 Ангамбл'; color = '#ffaa66'; }
+        else { verdict = '💀 Анрэпэбл'; color = '#ff4444'; }
+
+        if (pairVerdict) {
+            pairVerdict.textContent = verdict;
+            pairVerdict.style.border = `2px solid ${color}`;
+            pairVerdict.style.color = color;
+        }
+        updateRadar();
+    }
+    function updateRadar() {
+        const canvas = document.getElementById('radarChart');
+        if (!canvas || canvas.offsetParent === null) return;
+        const b1=parseFloat(p1Vn?.value||0),c1=parseFloat(p1X?.value||0),d1=parseFloat(p1D?.value||0);
+        const b2=parseFloat(p2Vn?.value||0),c2=parseFloat(p2X?.value||0),d2=parseFloat(p2D?.value||0);
+        const ctx=canvas.getContext('2d');
+        if(radarInstance) radarInstance.destroy();
+        radarInstance = new Chart(ctx, {
+            type:'radar',
+            data: {
+                labels:['Внешность','Характер','Анти-драма'],
+                datasets:[
+                    {label:'П1',data:[b1,c1+10,10-d1],borderColor:'#5f7aff',backgroundColor:'rgba(95,122,255,0.15)',borderWidth:2,pointRadius:4},
+                    {label:'П2',data:[b2,c2+10,10-d2],borderColor:'#ff7b9f',backgroundColor:'rgba(255,123,159,0.15)',borderWidth:2,pointRadius:4}
+                ]
+            },
+            options: {
+                responsive:true, maintainAspectRatio:true,
+                scales:{r:{beginAtZero:true,max:20,ticks:{color:'#5b6b9b',font:{size:8}},grid:{color:'#1a1f3a'},pointLabels:{color:'#9aabdf',font:{size:9}}}},
+                plugins:{legend:{labels:{color:'#ccd6ff',font:{size:9}}}}
+            }
+        });
+    }
+    [p1Vn,p1X,p1D,p2Vn,p2X,p2D,pairAlpha,pairBeta,pairGamma].forEach(el => {
+        if (el) el.addEventListener('input', updatePair);
+    });
+    const pairCardBtn = document.getElementById('pair-card-btn');
+    if (pairCardBtn) pairCardBtn.addEventListener('click', exportPairCard);
+    setTimeout(updateRadar, 300);
+
+    // ==================== ФОТО-АНАЛИЗ (Hugging Face через Python) ====================
+    const photoUploadArea = document.getElementById('photo-upload-area');
+    const photoInput = document.getElementById('photo-input');
+    const photoPreview = document.getElementById('photo-preview');
+    const photoLoading = document.getElementById('photo-loading');
+    const photoResults = document.getElementById('photo-results');
+    const photoError = document.getElementById('photo-error');
+    const photoRetryBtn = document.getElementById('photo-retry-btn');
+    const photoCameraBtn = document.getElementById('photo-camera-btn');
+
+    if (photoUploadArea) photoUploadArea.addEventListener('click', () => { if (photoInput) photoInput.click(); });
+    if (photoInput) photoInput.addEventListener('change', (e) => { if (e.target.files[0]) handlePhotoFile(e.target.files[0]); });
+    if (photoCameraBtn) photoCameraBtn.addEventListener('click', () => { if (photoInput) photoInput.click(); });
+    if (photoRetryBtn) photoRetryBtn.addEventListener('click', resetPhoto);
+
+    function handlePhotoFile(file) {
+        if (!file.type.startsWith('image/')) { showPhotoError('Только изображения (JPG, PNG)'); return; }
+        if (file.size > 10 * 1024 * 1024) { showPhotoError('Файл слишком большой'); return; }
+        photoFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            if (photoPreview) { photoPreview.src = e.target.result; photoPreview.style.display = 'block'; }
+            if (photoUploadArea) photoUploadArea.style.display = 'none';
+            if (photoCameraBtn) photoCameraBtn.style.display = 'none';
+            analyzePhoto();
+        };
+        reader.readAsDataURL(file);
+    }
+    function resetPhoto() {
+        photoFile = null;
+        if (photoPreview) photoPreview.style.display = 'none';
+        if (photoUploadArea) photoUploadArea.style.display = 'block';
+        if (photoCameraBtn) photoCameraBtn.style.display = 'block';
+        if (photoLoading) photoLoading.style.display = 'none';
+        if (photoResults) photoResults.style.display = 'none';
+        if (photoError) photoError.style.display = 'none';
+        if (photoRetryBtn) photoRetryBtn.style.display = 'none';
+    }
+    function showPhotoError(msg) {
+        if (photoError) { photoError.textContent = msg; photoError.style.display = 'block'; }
+        if (photoRetryBtn) photoRetryBtn.style.display = 'block';
+        if (photoLoading) photoLoading.style.display = 'none';
+        if (photoResults) photoResults.style.display = 'none';
+    }
+    function compressImageToBlob(file, maxSize) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if (w > maxSize || h > maxSize) {
+                        if (w > h) { h = (h / w) * maxSize; w = maxSize; }
+                        else { w = (w / h) * maxSize; h = maxSize; }
+                    }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    canvas.toBlob((blob) => {
+                        if (blob) resolve(blob);
+                        else reject(new Error('Не удалось конвертировать'));
+                    }, 'image/jpeg', 0.8);
+                };
+                img.onerror = () => reject(new Error('Не удалось загрузить'));
+                img.src = e.target.result;
+            };
+            reader.onerror = () => reject(new Error('Не удалось прочитать'));
+            reader.readAsDataURL(file);
+        });
+    }
+    async function analyzePhoto() {
+        const token = document.getElementById('hf-token')?.value?.trim();
+        if (!token) { showPhotoError('Введи Hugging Face токен в настройках'); return; }
+
+        if (photoLoading) photoLoading.style.display = 'block';
+        if (photoResults) photoResults.style.display = 'none';
+        if (photoError) photoError.style.display = 'none';
+        if (photoRetryBtn) photoRetryBtn.style.display = 'none';
+
+        try {
+            const imageBlob = await compressImageToBlob(photoFile, 768);
+            const base64Image = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+                reader.readAsDataURL(imageBlob);
+            });
+
+            // Отправляем на Python-сервер (локальный)
+            const response = await fetch('http://localhost:5000/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: token,
+                    image: base64Image
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Ошибка сервера');
+            }
+
+            const scores = await response.json();
+            const hunter = Math.min(10, Math.max(0, parseFloat(scores.hunter) || 0));
+            const prey = Math.min(10, Math.max(0, parseFloat(scores.prey) || 0));
+            const rizz = Math.min(10, Math.max(0, parseFloat(scores.rizz) || 0));
+            const aura = Math.min(10, Math.max(0, parseFloat(scores.aura) || 0));
+            const mogg = Math.min(10, Math.max(0, parseFloat(scores.mogg) || 0));
+
+            if (document.getElementById('hunter-val')) document.getElementById('hunter-val').textContent = hunter.toFixed(1);
+            if (document.getElementById('prey-val')) document.getElementById('prey-val').textContent = prey.toFixed(1);
+            if (document.getElementById('rizz-val')) document.getElementById('rizz-val').textContent = rizz.toFixed(1);
+            if (document.getElementById('aura-val')) document.getElementById('aura-val').textContent = aura.toFixed(1);
+            if (document.getElementById('mogg-val')) document.getElementById('mogg-val').textContent = mogg.toFixed(1);
+
+            animateBar('hunter-bar', 'hunter-bar-val', hunter);
+            animateBar('prey-bar', 'prey-bar-val', prey);
+            animateBar('rizz-bar', 'rizz-bar-val', rizz);
+            animateBar('aura-bar', 'aura-bar-val', aura);
+            animateBar('mogg-bar', 'mogg-bar-val', mogg);
+
+            if (photoLoading) photoLoading.style.display = 'none';
+            if (photoResults) photoResults.style.display = 'block';
+            if (photoRetryBtn) photoRetryBtn.style.display = 'block';
+        } catch (err) {
+            console.error(err);
+            showPhotoError(err.message || 'Не удалось проанализировать фото');
+        }
+    }
+    function animateBar(barId, valId, value) {
+        const bar = document.getElementById(barId);
+        const val = document.getElementById(valId);
+        if (bar) bar.style.width = (value * 10) + '%';
+        if (val) val.textContent = value.toFixed(1);
+    }
+
+    // ==================== ЭКСПОРТ В КАРТИНКУ ====================
+    function exportSoloCard() {
+        const v = getSoloData(), ksh = kshFormula(v.vn, v.x, v.d, v.U, v.H, v.Δ), cluster = getCluster(v.vn, v.x, v.d, ksh);
+        const div = document.createElement('div'); div.className = 'export-preview';
+        div.innerHTML = `<h2>Шаути-Аналитик</h2><div style="color:${kshColor(ksh)};font-size:3rem;font-weight:800;">${ksh.toFixed(1)}</div><div style="color:${cluster.color};font-weight:700;">${cluster.name}</div><div class="row"><div>ВН<br><b>${v.vn.toFixed(1)}</b></div><div>Х<br><b>${v.x.toFixed(1)}</b></div><div>Д<br><b>${v.d.toFixed(1)}</b></div></div><div class="watermark">${new Date().toLocaleDateString()}</div>`;
+        showCardModal(div);
+    }
+    function exportPairCard() {
+        const b1=parseFloat(p1Vn?.value||0),c1=parseFloat(p1X?.value||0),d1=parseFloat(p1D?.value||0);
+        const b2=parseFloat(p2Vn?.value||0),c2=parseFloat(p2X?.value||0),d2=parseFloat(p2D?.value||0);
+        const sci=((parseFloat(pairAlpha?.value||0.2)*(1-Math.abs(b1-b2)/10)+parseFloat(pairBeta?.value||0.5)*((Math.min(c1,c2)+10)/20)*(1-Math.abs(c1-c2)/20)+parseFloat(pairGamma?.value||0.3)*(1-(d1*d2)/100)))*100;
+        let v;sci>=85?v='Экстра класс':sci>=70?v='Элит':sci>=50?v='Высокий':sci>=40?v='Мид':sci>=30?v='Цветочки':sci>=15?v='Ангамбл':v='Анрэпэбл';
+        const div=document.createElement('div');div.className='export-preview';
+        div.innerHTML=`<h2 style="color:#ffb7c5;">Совместимость</h2><div style="font-size:3rem;">${sci.toFixed(1)}%</div><div style="font-weight:700;">${v}</div><div class="row"><div><b>П1</b><br>${b1.toFixed(1)} ${c1.toFixed(1)} ${d1.toFixed(1)}</div><div><b>П2</b><br>${b2.toFixed(1)} ${c2.toFixed(1)} ${d2.toFixed(1)}</div></div>`;
+        showCardModal(div);
+    }
+    function showCardModal(div) {
+        document.body.appendChild(div);
+        html2canvas(div, { backgroundColor: '#0a0f1c', scale: 2 }).then(canvas => {
+            document.body.removeChild(div);
+            const modalContent = document.getElementById('card-modal-content');
+            if (!modalContent) return;
+            modalContent.innerHTML = '';
+            canvas.style.maxWidth = '100%';
+            canvas.style.borderRadius = '12px';
+            modalContent.appendChild(canvas);
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Сохранить PNG';
+            saveBtn.className = 'success';
+            saveBtn.style.marginTop = '10px';
+            saveBtn.onclick = () => { const a = document.createElement('a'); a.download = 'shauthi_card.png'; a.href = canvas.toDataURL(); a.click(); };
+            modalContent.appendChild(saveBtn);
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = 'Закрыть';
+            closeBtn.className = 'close-btn';
+            closeBtn.style.marginLeft = '8px';
+            closeBtn.onclick = () => hideModal('card-modal');
+            modalContent.appendChild(closeBtn);
+            showModal('card-modal');
+        });
+    }
+    const cardModal = document.getElementById('card-modal');
+    if (cardModal) cardModal.addEventListener('click', (e) => { if (e.target === cardModal) hideModal('card-modal'); });
+
+    // ==================== НАСТРОЙКИ ====================
+    const inputModeSelect = document.getElementById('input-mode-select');
+    if (inputModeSelect) inputModeSelect.addEventListener('change', e => { setSoloMode(e.target.value); localStorage.setItem('shauthi_mode', e.target.value); });
+
+    const stepSelect = document.getElementById('step-select');
+    if (stepSelect) stepSelect.addEventListener('change', e => {
+        currentStep = e.target.value;
+        [soloVn,soloX,soloD].forEach(el => { if (el) el.step = currentStep; });
+        [soloVnNum,soloXNum,soloDNum].forEach(el => { if (el) el.step = currentStep; });
+        localStorage.setItem('shauthi_step', currentStep);
+    });
+
+    const themeSelect = document.getElementById('theme-select');
+    if (themeSelect) themeSelect.addEventListener('change', e => setTheme(e.target.value));
+
+    const hfTokenInput = document.getElementById('hf-token');
+    if (hfTokenInput) hfTokenInput.addEventListener('input', () => { localStorage.setItem('shauthi_hf_token', hfTokenInput.value.trim()); });
+
+    const importLinkBtn = document.getElementById('import-link-btn');
+    if (importLinkBtn) importLinkBtn.addEventListener('click', () => {
+        const link = document.getElementById('import-link-input')?.value?.trim();
+        if (!link) return;
+        if (importRaterToGroup(link)) {
+            const status = document.getElementById('import-status');
+            if (status) status.textContent = 'Импортирован!';
+            const input = document.getElementById('import-link-input');
+            if (input) input.value = '';
+            switchTab('group');
+        }
+    });
+
+    const pasteBtn = document.getElementById('paste-clipboard-btn');
+    if (pasteBtn) pasteBtn.addEventListener('click', async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (importRaterToGroup(text)) {
+                const status = document.getElementById('import-status');
+                if (status) status.textContent = 'Из буфера!';
+                switchTab('group');
+            }
+        } catch(e) {
+            const status = document.getElementById('import-status');
+            if (status) status.textContent = 'Ошибка';
+        }
+    });
+
+    const scanBtn = document.getElementById('scan-qr-btn');
+    if (scanBtn) scanBtn.addEventListener('click', startScanner);
+
+    // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+    const savedMode = localStorage.getItem('shauthi_mode') || 'slider';
+    const savedStep = localStorage.getItem('shauthi_step') || '0.1';
+    const savedTheme = localStorage.getItem('shauthi_theme') || 'dark';
+    const savedHfToken = localStorage.getItem('shauthi_hf_token') || '';
+
+    if (inputModeSelect) inputModeSelect.value = savedMode;
+    if (stepSelect) stepSelect.value = savedStep;
+    if (themeSelect) themeSelect.value = savedTheme;
+    if (hfTokenInput) hfTokenInput.value = savedHfToken;
+
+    currentStep = savedStep;
+    [soloVn,soloX,soloD].forEach(el => { if (el) el.step = currentStep; });
+    [soloVnNum,soloXNum,soloDNum].forEach(el => { if (el) el.step = currentStep; });
+
+    setSoloMode(savedMode);
+    setTheme(savedTheme);
+
+    if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+    }
+
+    console.log('Шаути-Аналитик v27 (Hugging Face + Python) готов');
+})();
+</script>
+</body>
+</html>
